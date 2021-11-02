@@ -64,8 +64,6 @@ congress$major[congress$major == 99] <- 22
 ggplot(congress, aes(x=major)) + geom_bar(aes(fill=label))
 
 
-
-
 #Separate in train/test
 sample <- sample.int(n = nrow(congress), size = floor(.70 * nrow(congress)), replace = F)
 train <- congress[sample, ]
@@ -83,18 +81,46 @@ sparse_test <- as.compressed.matrix(DocumentTermMatrix(test_corpus))
 
 #TODO: decidir que nfold usamos
 f <- tune.maxent(sparse_train, train$major, nfold = 3, showall = TRUE, verbose = TRUE)
+f2 <- f <- tune.maxent(sparse_train, train$major, nfold = 5, showall = TRUE, verbose = TRUE)
+
 print(f)
+print(f2)
 
 #Creamos el modelo en base al mejor pct_best_fit anterior
 model <- maxent(sparse_train, congress$major, l1_regularizer = 0.0, l2_regularizer = 0.2, 
                 use_sgd = 0, set_heldout = 0)
 
+model_nfold5 <- maxent(sparse_train, congress$major, l1_regularizer = 0.0, l2_regularizer = 0.4, 
+                       use_sgd = 0, set_heldout = 0)
+
 #utilizando el dataset test
 results <- predict(model, sparse_test)
-print(results)
 
 
-#Probar con otro nfold
+
+print(which.max(results[1, 2:length(results[1,])]))
+
+#Get confusion matrix
+
+#Relevant topics
+relevant_topics <- c()
+
+confusion_mat <- data.frame(label=integer(), predicted=integer(), retrieved=integer(), relevant=integer())
+
+for(row in 1:nrow(results)) {
+  row_label <- as.numeric(results[row, 1])
+  predicted <- as.numeric(names(which.max(results[row, 2:ncol(results)])))
+  
+  is_relevant <- 0
+  if(predicted == 20 | predicted == 4 | predicted == 7 | predicted == 8) {
+    is_relevant <- 1
+  }
+  
+  confusion_mat <- rbind(confusion_mat, data.frame(label=row_label, predicted=predicted, retrieved=0, relevant=0))
+}
+
+
+
 
 
 #Word cloud with all data
@@ -106,3 +132,9 @@ df_all_data <- data.frame(word = names(words), freq = words)
 
 wordcloud(words=df_all_data$word,freq=df_all_data$freq, min.freq=1, max.words=300, 
           random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
+
+
+#Muestra del preprocesamiento
+for(i in 1:5) print(congress$text[i])
+for(i in 1:5) print(all_corpus[[i]]$content)
+
