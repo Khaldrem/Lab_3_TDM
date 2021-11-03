@@ -29,8 +29,6 @@ preprocess_data <- function(data) {
   return(data)
 }
 
-set.seed(999)
-
 #Prepare data
 data("USCongress", package = "RTextTools")
 
@@ -81,7 +79,7 @@ sparse_test <- as.compressed.matrix(DocumentTermMatrix(test_corpus))
 
 #TODO: decidir que nfold usamos
 f <- tune.maxent(sparse_train, train$major, nfold = 3, showall = TRUE, verbose = TRUE)
-f2 <- f <- tune.maxent(sparse_train, train$major, nfold = 5, showall = TRUE, verbose = TRUE)
+f2 <- tune.maxent(sparse_train, train$major, nfold = 5, showall = TRUE, verbose = TRUE)
 
 print(f)
 print(f2)
@@ -94,17 +92,9 @@ model_nfold5 <- maxent(sparse_train, congress$major, l1_regularizer = 0.0, l2_re
                        use_sgd = 0, set_heldout = 0)
 
 #utilizando el dataset test
-results <- predict(model, sparse_test)
-
-
-
-print(which.max(results[1, 2:length(results[1,])]))
+results <- predict(model_nfold5, sparse_test)
 
 #Get confusion matrix
-
-#Relevant topics
-relevant_topics <- c()
-
 confusion_mat <- data.frame(label=integer(), predicted=integer(), retrieved=integer(), relevant=integer())
 
 for(row in 1:nrow(results)) {
@@ -116,11 +106,16 @@ for(row in 1:nrow(results)) {
     is_relevant <- 1
   }
   
-  confusion_mat <- rbind(confusion_mat, data.frame(label=row_label, predicted=predicted, retrieved=0, relevant=0))
+  is_retrieved <- ifelse(row_label == predicted, 1, 0)
+  
+  confusion_mat <- rbind(confusion_mat, data.frame(label=row_label, predicted=predicted, retrieved=is_retrieved, relevant=is_relevant))
 }
 
 
 
+
+
+#------------------
 
 
 #Word cloud with all data
@@ -138,3 +133,35 @@ wordcloud(words=df_all_data$word,freq=df_all_data$freq, min.freq=1, max.words=30
 for(i in 1:5) print(congress$text[i])
 for(i in 1:5) print(all_corpus[[i]]$content)
 
+#Prueba con datos sin preprocesar
+all_corpus <- Corpus(VectorSource(train$text))
+matrix_all_data <- as.compressed.matrix(DocumentTermMatrix(all_corpus))
+
+test_corpus_all_data <- Corpus(VectorSource(test$text))
+matrix_all_data_test <- as.compressed.matrix(DocumentTermMatrix(test_corpus_all_data))
+
+f3 <- tune.maxent(matrix_all_data, congress$major, nfold = 5, showall = TRUE, verbose = TRUE)
+print(f3)
+
+model_all_data <- maxent(matrix_all_data, congress$major, l1_regularizer = 0.0, l2_regularizer = 0.8, 
+                use_sgd = FALSE, set_heldout = 0)
+
+results <- predict(model_all_data, matrix_all_data_test)
+
+confusion_mat <- data.frame(label=integer(), predicted=integer(), retrieved=integer(), relevant=integer())
+
+for(row in 1:nrow(results)) {
+  row_label <- as.numeric(results[row, 1])
+  predicted <- as.numeric(names(which.max(results[row, 2:ncol(results)])))
+  
+  is_relevant <- 0
+  if(predicted == 20 | predicted == 4 | predicted == 7 | predicted == 8) {
+    is_relevant <- 1
+  }
+  
+  is_retrieved <- ifelse(row_label == predicted, 1, 0)
+  
+  confusion_mat <- rbind(confusion_mat, data.frame(label=row_label, predicted=predicted, retrieved=is_retrieved, relevant=is_relevant))
+}
+
+nrow(confusion_mat[confusion_mat$retrieved == 0 & confusion_mat$relevant == 0, ])
